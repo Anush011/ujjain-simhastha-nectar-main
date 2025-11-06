@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, User } from "firebase/auth";
+import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { auth, googleProvider, isFirebaseEnabled } from "@/lib/firebase";
 
 // Read fake auth toggle from Vite env
@@ -9,6 +9,8 @@ type AuthContextType = {
   user: User | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
+  signUpWithEmail?: (email: string, password: string, displayName?: string) => Promise<void>;
+  signInWithEmail?: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   // dev-only fake sign-in (name/email/phone)
   signInFake?: (payload: { displayName?: string; email?: string; phoneNumber?: string }) => Promise<void>;
@@ -61,9 +63,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await signInWithPopup(auth, googleProvider);
   };
 
+  const signUpWithEmail = async (email: string, password: string, displayName?: string) => {
+    if (isFakeAuth) {
+      // In fake mode, store a simple fake user
+      if (signInFake) {
+        await signInFake({ displayName, email });
+      }
+      return;
+    }
+
+    if (!isFirebaseEnabled || !auth) {
+      console.warn("Firebase not configured — cannot signUpWithEmail");
+      return Promise.resolve();
+    }
+
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    try {
+      if (displayName && userCredential.user) {
+        await updateProfile(userCredential.user, { displayName });
+      }
+    } catch (e) {
+      // non-fatal: profile update failed
+      console.warn("Failed to set displayName:", e);
+    }
+    // onAuthStateChanged will pick up the new user; setUser for immediacy
+    setUser(userCredential.user as any);
+  };
+
+  const signInWithEmail = async (email: string, password: string) => {
+    if (isFakeAuth) {
+      if (signInFake) {
+        await signInFake({ email });
+      }
+      return;
+    }
+
+    if (!isFirebaseEnabled || !auth) {
+      console.warn("Firebase not configured — cannot signInWithEmail");
+      return Promise.resolve();
+    }
+
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    setUser(userCredential.user as any);
+  };
+
   const signOut = async () => {
+    if (isFakeAuth) {
+      await signOutFake();
+      return;
+    }
+    
     if (!isFirebaseEnabled || !auth) return Promise.resolve();
-    await firebaseSignOut(auth);
+    try {
+      await firebaseSignOut(auth);
+      setUser(null);
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
   };
 
   // dev-only fake signer: store minimal user object in localStorage
@@ -94,7 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signOut, signInFake: isFakeAuth ? signInFake : undefined }}>
+    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signUpWithEmail, signInWithEmail, signOut, signInFake: isFakeAuth ? signInFake : undefined }}>
       {children}
     </AuthContext.Provider>
   );

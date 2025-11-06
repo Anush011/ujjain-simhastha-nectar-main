@@ -192,12 +192,25 @@ const Header = () => {
               <div className="flex items-center space-x-2">
                 <div className="text-sm">{user.displayName || user.email || user.phoneNumber}</div>
                 <Button onClick={() => navigate("/register")}>Register</Button>
-                <Button variant="ghost" onClick={() => signOut()}>Logout</Button>
+                <Button 
+                  variant="ghost" 
+                  onClick={async () => {
+                    await signOut();
+                    navigate('/');
+                  }}
+                >
+                  Logout
+                </Button>
               </div>
             ) : (
               <div className="flex items-center space-x-2">
-                <Button onClick={() => setAuthOpen(true)}>Login / Sign up</Button>
-                <Button onClick={() => setAuthOpen(true)} variant="default">Register</Button>
+                <Button 
+                  onClick={() => setAuthOpen(true)} 
+                  variant="default"
+                  className="flex items-center gap-2"
+                >
+                  Join Simhastha 2028
+                </Button>
               </div>
             )}
           </div>

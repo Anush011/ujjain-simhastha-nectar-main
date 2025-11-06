@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { db } from "@/lib/firebase";
+import { db, isFirebaseEnabled } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { addDoc, collection } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
@@ -53,7 +53,8 @@ export default function RegistrationForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    // require user to be signed in
     if (!user) {
       toast({
         title: "Please sign in",
@@ -65,7 +66,43 @@ export default function RegistrationForm() {
 
     try {
       setLoading(true);
-      
+
+      // If Firebase is not configured, save locally to mock_registrations for dev/demo
+      if (!isFirebaseEnabled || !db) {
+        try {
+          const raw = localStorage.getItem("mock_registrations");
+          const arr = raw ? JSON.parse(raw) : [];
+          const rec = {
+            ...formData,
+            userId: user.uid,
+            status: "pending",
+            createdAt: new Date().toISOString(),
+          };
+          arr.push(rec);
+          localStorage.setItem("mock_registrations", JSON.stringify(arr));
+
+          toast({
+            title: "Registration saved (demo) Your registration was saved locally because backend is not configured.",
+          });
+
+          setFormData({
+            ...formData,
+            groupSize: 1,
+            accommodation: "not_needed",
+            specialRequests: "",
+          });
+          return;
+        } catch (err) {
+          console.error("Local registration error:", err);
+          toast({
+            title: "Registration failed",
+            description: "There was an error saving your registration locally.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       await addDoc(collection(db, "registrations"), {
         ...formData,
         userId: user.uid,
